@@ -6,12 +6,7 @@ const UglifyJsPlugin = require("uglifyjs-webpack-plugin");
 const WebpackShellPlugin = require('webpack-shell-plugin');
 const OptimizeCSSAssetsPlugin = require("optimize-css-assets-webpack-plugin");
 
-const shellScript = [];
-
-shellScript.push(new WebpackShellPlugin({
-	onBuildStart: ['echo "Starting"'],
-	onBuildEnd: ['postcss --dir wwwroot/dist wwwroot/dist/*.css']
-}));
+process.traceDeprecation = true;
 
 module.exports = {
 	entry: {
@@ -26,7 +21,8 @@ module.exports = {
 		comment: "./React/js/EntryPoint/Modules/Admin/Comment/Comment.js",
 		portal: "./React/js/EntryPoint/Modules/Admin/Portal/PortalIndex.js",
 		ClientIndex: "./React/js/EntryPoint/Modules/Client/Index/ClientIndex.js",
-		adminSettings: "./React/js/EntryPoint/Modules/Admin/Settings/Settings.js"
+		adminSettings: "./React/js/EntryPoint/Modules/Admin/Settings/Settings.js",
+		socialLinks: "./React/js/EntryPoint/Modules/Shared/SocialLinks.js"
 	},
 	output: {
 		path: path.resolve(__dirname, "wwwroot/dist"),
@@ -74,7 +70,7 @@ module.exports = {
 		}),
 		new UglifyJsPlugin(),
 		new WebpackShellPlugin({
-			onBuildStart: ['echo "Starting"'],
+			onBuildStart: ['echo "Starting postcss command"'],
 			onBuildEnd: ['postcss --dir wwwroot/dist wwwroot/dist/*.css']
 		})
 	],
@@ -118,6 +114,5 @@ module.exports = {
 				loader: "file-loader"
 			}
 		]
-	},
-	watch: true
+	}
 };

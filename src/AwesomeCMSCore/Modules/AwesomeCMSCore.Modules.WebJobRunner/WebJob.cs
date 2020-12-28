@@ -1,76 +1,85 @@
-﻿using System;
+using System;
+using System.IO;
 using System.Text;
+using AwesomeCMSCore.Modules.Helper.Extensions;
 using AwesomeCMSCore.Modules.Queue.Settings;
+using AwesomeCMSCore.Modules.Shared.Settings;
 using AwesomeCMSCore.Modules.WebJob.Settings;
-using Hangfire;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace AwesomeCMSCore.Modules.WebJobRunner
 {
-    public class WebJob
-    {
-        private readonly IOptions<WebJobSettings> _webJobSettings;
-        private readonly IOptions<QueueSettings> _queueSettings;
-        public WebJob(
-            IOptions<WebJobSettings> webJobSettings,
-            IOptions<QueueSettings> queueSettings)
-        {
-            _webJobSettings = webJobSettings;
-            _queueSettings = queueSettings;
-        }
+	public class WebJob
+	{
+		private readonly IOptions<WebJobSettings> _webJobSettings;
+		private readonly IOptions<QueueSettings> _queueSettings;
+		private readonly IOptions<AssetSettings> _assetSettings;
 
-        public void Run()
-        {
-            GlobalConfiguration.Configuration.UseSqlServerStorage(_webJobSettings.Value.DbConnectionString);
+		public WebJob(
+			IOptions<WebJobSettings> webJobSettings,
+			IOptions<QueueSettings> queueSettings,
+			IOptions<AssetSettings> assetSettings)
+		{
+			_webJobSettings = webJobSettings;
+			_queueSettings = queueSettings;
+			_assetSettings = assetSettings;
+		}
 
-            using (var server = new BackgroundJobServer())
-            {
-                Console.WriteLine("Hangfire Server started. Press any key to exit...");
-                //Console.ReadLine();
-            }
-        }
+		public void RunImageProcessQueue()
+		{
+			var factory = new ConnectionFactory()
+			{
+				HostName = _queueSettings.Value.Host,
+				UserName = _queueSettings.Value.Username,
+				Password = _queueSettings.Value.Password
+			};
 
-        /// <summary>
-        /// This is just for testing 
-        /// To make sure message arent lost need to mark both queue as durable: true
-        /// Tun on message ack we need to change it to false
-        /// </summary>
-        public void RunQueue()
-        {
-            var factory = new ConnectionFactory() { HostName = _queueSettings.Value.Host };
-            using (var connection = factory.CreateConnection())
-            using (var channel = connection.CreateModel())
-            {
-                channel.QueueDeclare(queue: "hellojob",
-                    durable: true,
-                    exclusive: false,
-                    autoDelete: false,
-                    arguments: null);
+			using (var connection = factory.CreateConnection())
+			using (var channel = connection.CreateModel())
+			{
+				channel.QueueDeclare(queue: QueueName.ImageResizeProcessing.ToString(),
+					durable: true,
+					exclusive: false,
+					autoDelete: false,
+					arguments: null);
 
-                //Fair dispatch setup
-                channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
-                Console.WriteLine(" [*] Waiting for messages.");
+				//Fair dispatch setup
+				channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
+				Console.WriteLine(" [*] Waiting for messages.");
 
-                var consumer = new EventingBasicConsumer(channel);
-                consumer.Received += (model, ea) =>
-                {
-                    var body = ea.Body;
-                    dynamic message = JsonConvert.DeserializeObject(Encoding.UTF8.GetString(body));
-                    Console.WriteLine(" [x] Received {0}", message.Message);
+				var consumer = new EventingBasicConsumer(channel);
+				consumer.Received += (model, ea) =>
+				{
+					var body = ea.Body;
+					var filePath = Encoding.UTF8.GetString(body);
+					Console.WriteLine(" [x] Received {0}", filePath);
 
-                    channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
-                };
+					var fileInfo = new FileInfo(filePath);
 
-                channel.BasicConsume(queue: "hellojob",
-                    autoAck: false,
-                    consumer: consumer);
+					using (var image = Image.Load(filePath))
+					{
+						image.Mutate(x => x
+							 .Resize(295, 205));
 
-                Console.WriteLine(" Press [enter] to exit.");
-                //Console.ReadLine();
-            }
-        }
-    }
+						image.Save(Path.Combine(_assetSettings.Value.AssetPath, fileInfo.Name));
+					}
+
+					channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+				};
+
+				channel.BasicConsume(queue: QueueName.ImageResizeProcessing.ToString(),
+					autoAck: false,
+					consumer: consumer);
+
+				Console.WriteLine(" Press [enter] to exit.");
+				Console.ReadLine();
+			}
+		}
+	}
 }

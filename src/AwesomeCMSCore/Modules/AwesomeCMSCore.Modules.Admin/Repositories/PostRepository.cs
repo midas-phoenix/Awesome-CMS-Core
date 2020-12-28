@@ -74,11 +74,14 @@ namespace AwesomeCMSCore.Modules.Admin.Repositories
 					options.AfterMap((src, dest) => { dest.PostOptionsDefaultViewModel = postOptions; });
 				});
 
-			postViewModel.MediaViewModel = new MediaViewModel
+			if (post.Medias != null)
 			{
-				Name = post.Medias.Name,
-				Path = post.Medias.Path
-			};
+				postViewModel.MediaViewModel = new MediaViewModel
+				{
+					Name = post.Medias.Name,
+					Path = post.Medias.Path
+				};
+			}
 
 			return postViewModel;
 		}
@@ -127,7 +130,7 @@ namespace AwesomeCMSCore.Modules.Admin.Repositories
 
 			var currentUser = await _userService.GetCurrentUserAsync();
 
-			var postData = _mapper.Map<PostViewModel, Post>(postViewModel, options =>
+			var postData = _mapper.Map<PostViewModel, Post>(postViewModel, post, options =>
 			{
 				options.AfterMap((src, dest) => dest.User = currentUser);
 			});
@@ -191,7 +194,7 @@ namespace AwesomeCMSCore.Modules.Admin.Repositories
 		{
 			try
 			{
-				if (postViewModel.Thumbnail.Length > 0)
+				if (postViewModel.Thumbnail != null && postViewModel.Thumbnail.Length > 0)
 				{
 					var mediaFileName = RandomString.GenerateRandomString(AppEnum.MinGeneratedAssetName);
 					var assetPath = await _assetService.UploadAssets(postViewModel.Thumbnail, mediaFileName);
@@ -203,6 +206,7 @@ namespace AwesomeCMSCore.Modules.Admin.Repositories
 						Post = post,
 						PostId = post.Id,
 						Path = assetPath,
+						StorageType = StorageType.GoogleDrive,
 						Type = postViewModel.Thumbnail.ContentType,
 						User = await _userService.GetCurrentUserAsync()
 					};
@@ -221,13 +225,17 @@ namespace AwesomeCMSCore.Modules.Admin.Repositories
 		{
 			try
 			{
-				if (postViewModel.Thumbnail.Length > 0)
+				if (postViewModel.Thumbnail != null && postViewModel.Thumbnail.Length > 0)
 				{
-					var existingMedia = await _unitOfWork.Repository<Media>().FindAsync(m => m.Id == post.Medias.Id);
-					if(existingMedia != null)
+					if (post.Medias != null)
 					{
-						await _unitOfWork.Repository<Media>().DeleteAsync(existingMedia);
+						var existingMedia = await _unitOfWork.Repository<Media>().FindAsync(m => m.Id == post.Medias.Id);
+						if (existingMedia != null)
+						{
+							await _unitOfWork.Repository<Media>().DeleteAsync(existingMedia);
+						}
 					}
+
 					var mediaFileName = RandomString.GenerateRandomString(AppEnum.MinGeneratedAssetName);
 					var assetPath = await _assetService.UploadAssets(postViewModel.Thumbnail, mediaFileName);
 					var media = new Media
@@ -238,6 +246,7 @@ namespace AwesomeCMSCore.Modules.Admin.Repositories
 						Post = post,
 						PostId = post.Id,
 						Path = assetPath,
+						StorageType = StorageType.GoogleDrive,
 						Type = postViewModel.Thumbnail.ContentType,
 						User = await _userService.GetCurrentUserAsync()
 					};

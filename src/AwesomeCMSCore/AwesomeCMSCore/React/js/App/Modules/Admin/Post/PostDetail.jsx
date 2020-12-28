@@ -75,7 +75,7 @@ class PostDetail extends Component {
 				title: res.data.title,
 				shortDescription: res.data.shortDescription,
 				postContent: res.data.content,
-				imagePath: res.data.mediaViewModel.path
+				imagePath: res.data.mediaViewModel && res.data.mediaViewModel.path
 					? res.data.mediaViewModel.path
 					: null
 			});
@@ -316,7 +316,7 @@ class PostDetail extends Component {
 									</Row>
 									<Row className="postFooter">
 										<Col md="12">
-											<ACCButton loading={loading} btnBlocked="btn-block" label="Save Post"/>
+											<ACCButton loading={loading} class="btn btn-primary btn-block" label="Save Post"/>
 										</Col>
 									</Row>
 								</Col>
